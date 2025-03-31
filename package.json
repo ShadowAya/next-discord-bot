@@ -1,0 +1,32 @@
+{
+  "name": "next-discord-bot",
+  "version": "1.0.0",
+  "main": "dist/src/index.js",
+  "types": "dist/src/index.d.ts",
+  "scripts": {
+    "build:types": "tsc",
+    "build:js": "swc src -d dist",
+    "build": "npm run build:types && npm run build:js",
+    "build:pack": "npm run build && npm pack",
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "description": "",
+  "dependencies": {
+    "@swc/cli": "^0.6.0",
+    "@swc/core": "^1.11.13",
+    "chalk": "^5.4.1",
+    "chokidar": "^4.0.3",
+    "discord-api-types": "^0.37.119",
+    "discord-interactions": "^4.1.1",
+    "next": "^15.2.3",
+    "webpack": "^5.98.0"
+  },
+  "devDependencies": {
+    "@types/node": "^22.13.11",
+    "esbuild": "^0.25.1",
+    "typescript": "^5.8.2"
+  }
+}
