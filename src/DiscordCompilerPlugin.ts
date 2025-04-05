@@ -260,78 +260,80 @@ class DiscordCompilerPlugin {
       this.options?.watchMode !== false &&
       compiler.options.mode === "development"
     ) {
-      const watcher = chokidar.watch(baseDiscordPath, {
-        ignoreInitial: false,
-      });
+      this.compileDiscordModules(true).then(() => {
+        const watcher = chokidar.watch(baseDiscordPath, {
+          ignoreInitial: true,
+        });
 
-      watcher.on("all", async (event, filePath) => {
-        if (
-          event === "addDir" ||
-          event === "unlinkDir" ||
-          event === "ready" ||
-          event === "raw" ||
-          event === "all"
-        )
-          return;
+        watcher.on("all", async (event, filePath) => {
+          if (
+            event === "addDir" ||
+            event === "unlinkDir" ||
+            event === "ready" ||
+            event === "raw" ||
+            event === "all"
+          )
+            return;
 
-        const relativePath = path
-          .relative(process.cwd(), filePath)
-          .replace(/\\/g, "/");
+          const relativePath = path
+            .relative(process.cwd(), filePath)
+            .replace(/\\/g, "/");
 
-        const colorMap = {
-          add: chalk.greenBright,
-          change: chalk.yellowBright,
-          unlink: chalk.redBright,
-          error: chalk.redBright,
-        };
+          const colorMap = {
+            add: chalk.greenBright,
+            change: chalk.yellowBright,
+            unlink: chalk.redBright,
+            error: chalk.redBright,
+          };
 
-        const eventColor = colorMap[event] || chalk.cyan;
-        const label = eventColor(`[${event.toUpperCase()}]`.padStart(10));
-        const file = chalk.whiteBright(relativePath);
+          const eventColor = colorMap[event] || chalk.cyan;
+          const label = eventColor(`[${event.toUpperCase()}]`.padStart(10));
+          const file = chalk.whiteBright(relativePath);
 
-        console.log(`🔄 ${label} ${file} ${chalk.gray("— Rebuilding...")}`);
+          console.log(`🔄 ${label} ${file} ${chalk.gray("— Rebuilding...")}`);
 
-        await this.compileDiscordModules(true);
-      });
+          await this.compileDiscordModules(true);
+        });
 
-      watcher.on("unlink", (absolutePath) => {
-        const relativePath = normalizePath(
-          path.relative(baseDiscordPath, absolutePath)
-        );
+        watcher.on("unlink", (absolutePath) => {
+          const relativePath = normalizePath(
+            path.relative(baseDiscordPath, absolutePath)
+          );
 
-        if (!relativePath.endsWith("command.ts")) return;
+          if (!relativePath.endsWith("command.ts")) return;
 
-        const entryName = relativePath.replace(/\.ts$/, "");
+          const entryName = relativePath.replace(/\.ts$/, "");
 
-        const distDir = path.resolve(
-          process.cwd(),
-          this.options?.distDir || "dist/discordModules"
-        );
-        const compiledPath = path.resolve(distDir, `${entryName}.js`);
+          const distDir = path.resolve(
+            process.cwd(),
+            this.options?.distDir || "dist/discordModules"
+          );
+          const compiledPath = path.resolve(distDir, `${entryName}.js`);
 
-        if (existsSync(compiledPath)) {
-          try {
-            rmSync(compiledPath);
+          if (existsSync(compiledPath)) {
+            try {
+              rmSync(compiledPath);
 
-            let dir = path.dirname(compiledPath);
+              let dir = path.dirname(compiledPath);
 
-            while (dir !== distDir && existsSync(dir)) {
-              const contents = readdirSync(dir);
-              if (contents.length === 0) {
-                rmSync(dir, { recursive: true });
-                dir = path.dirname(dir);
-              } else {
-                break;
+              while (dir !== distDir && existsSync(dir)) {
+                const contents = readdirSync(dir);
+                if (contents.length === 0) {
+                  rmSync(dir, { recursive: true });
+                  dir = path.dirname(dir);
+                } else {
+                  break;
+                }
               }
+            } catch (err) {
+              console.warn("⚠️ Failed to delete dist file:", compiledPath, err);
             }
-          } catch (err) {
-            console.warn("⚠️ Failed to delete dist file:", compiledPath, err);
           }
-        }
-      });
+        });
 
-      compiler.hooks.shutdown.tap("DiscordCompilerPlugin", () => {
-        watcher.close();
+        compiler.hooks.shutdown.tap("DiscordCompilerPlugin", () => {
+          watcher.close();
+        });
       });
     } else {
       compiler.hooks.beforeRun.tapPromise("Discord Compiler", () =>
