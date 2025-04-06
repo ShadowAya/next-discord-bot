@@ -5,9 +5,8 @@ import {
   APIMessage,
   InteractionResponseType,
   InteractionType,
-  RESTGetAPIInteractionOriginalResponseResult,
+  RESTPostAPIInteractionCallbackWithResponseResult,
 } from "discord-api-types/v10";
-import { NextResponse } from "next/server";
 import discordAPIRequest from "./DiscordAPI";
 import Message from "./Message";
 
@@ -18,7 +17,7 @@ function getTimestampFromSnowflake(snowflake: string): Date {
   return new Date(Number(timestamp));
 }
 
-type MessageContent = {
+type MessageContent<WithRes extends boolean | undefined> = {
   tts?: boolean;
   content: string;
   // embeds
@@ -29,6 +28,7 @@ type MessageContent = {
   // components
   // attachments
   // poll
+  withResponse?: WithRes;
 };
 type EditMessageContent = {
   content?: string;
@@ -38,21 +38,22 @@ type EditMessageContent = {
   // attachments
   // poll
 };
+type DeferMessageContent<WithRes extends boolean | undefined> = {
+  ephemeral?: boolean;
+  withResponse?: WithRes;
+};
 
-export type InteractionResponseCallback = (res: NextResponse) => void;
+type ReplyHasContent<B extends boolean | undefined, T> = [B] extends [true]
+  ? T
+  : undefined;
 
 class BaseInteraction {
   protected interaction: APIInteraction;
-  protected resCallback: InteractionResponseCallback;
   public replied: boolean = false;
   public createdAt: Date;
 
-  protected constructor(
-    interaction: APIInteraction,
-    resCallback: InteractionResponseCallback
-  ) {
+  protected constructor(interaction: APIInteraction) {
     this.interaction = interaction;
-    this.resCallback = resCallback;
     this.createdAt = getTimestampFromSnowflake(interaction.id);
   }
 
@@ -60,15 +61,19 @@ class BaseInteraction {
    * Reply to the interaction with a message.
    * @param content The content of the message to send. Can be a string or an object with additional options.
    */
-  async reply(content: string | MessageContent) {
+  async reply<T extends boolean | undefined = false>(
+    content: string | MessageContent<T>
+  ): Promise<ReplyHasContent<T, Message>> {
     if (this.replied) {
       throw new Error("Already replied to this interaction.");
     }
     this.replied = true;
 
     let reqBody: APIInteractionResponseChannelMessageWithSource;
+    const isString = typeof content === "string";
+    const expectsResponse: boolean = !isString && !!content?.withResponse;
 
-    if (typeof content === "string") {
+    if (isString) {
       reqBody = {
         type: InteractionResponseType.ChannelMessageWithSource,
         data: {
@@ -91,43 +96,62 @@ class BaseInteraction {
       };
     }
 
-    const res = NextResponse.json(reqBody, {
-      status: 200,
-      headers: {
-        "User-Agent": "DiscordBot (example.com, v0.1)",
-        "Content-Type": "application/json",
-      },
-    });
+    const req = await discordAPIRequest<
+      RESTPostAPIInteractionCallbackWithResponseResult | undefined
+    >(
+      `interactions/${this.interaction.id}/${this.interaction.token}/callback${
+        !isString && content?.withResponse ? "?with_response=true" : ""
+      }`,
+      "POST",
+      reqBody
+    );
 
-    this.resCallback(res);
+    if (expectsResponse) {
+      if (req?.resource?.message)
+        return new Message(req.resource.message) as ReplyHasContent<T, Message>;
+      else return (await this.getReply()) as ReplyHasContent<T, Message>;
+    } else {
+      return undefined as ReplyHasContent<T, Message>;
+    }
   }
 
   /**
    * Defer the interaction without sending a message.
    * @param ephemeral Whether the deferred message should be ephemeral.
    */
-  async defer(ephemeral: boolean = false) {
+  async defer<T extends boolean | undefined = false>(
+    options?: DeferMessageContent<T>
+  ): Promise<ReplyHasContent<T, Message>> {
     if (this.replied) {
       throw new Error("Already replied to this interaction.");
     }
     this.replied = true;
+    const expectsResponse: boolean = !!options?.withResponse;
 
     const reqBody = {
       type: InteractionResponseType.DeferredChannelMessageWithSource,
       data: {
-        flags: ephemeral ? 64 : 0,
+        flags: options?.ephemeral ? 64 : 0,
       },
     };
 
-    const res = NextResponse.json(reqBody, {
-      status: 200,
-      headers: {
-        "User-Agent": "DiscordBot (example.com, v0.1)",
-        "Content-Type": "application/json",
-      },
-    });
+    const req = await discordAPIRequest<
+      RESTPostAPIInteractionCallbackWithResponseResult | undefined
+    >(
+      `interactions/${this.interaction.id}/${this.interaction.token}/callback${
+        options?.withResponse ? "?with_response=true" : ""
+      }`,
+      "POST",
+      reqBody
+    );
 
-    this.resCallback(res);
+    if (expectsResponse) {
+      if (req?.resource?.message)
+        return new Message(req.resource.message) as ReplyHasContent<T, Message>;
+      else return (await this.getReply()) as ReplyHasContent<T, Message>;
+    } else {
+      return undefined as ReplyHasContent<T, Message>;
+    }
   }
 
   /**
@@ -183,6 +207,10 @@ class BaseInteraction {
 export class Interaction extends BaseInteraction {
   declare interaction: APIInteraction;
 
+  constructor(interaction: APIInteraction) {
+    super(interaction);
+  }
+
   public isCommand(): this is SlashCommandInteraction {
     return this.interaction.type === InteractionType.ApplicationCommand;
   }
@@ -190,4 +218,8 @@ export class Interaction extends BaseInteraction {
 
 export class SlashCommandInteraction extends BaseInteraction {
   declare interaction: APIApplicationCommandInteraction;
+
+  constructor(interaction: APIApplicationCommandInteraction) {
+    super(interaction);
+  }
 }

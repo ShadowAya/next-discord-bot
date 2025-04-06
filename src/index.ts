@@ -17,10 +17,7 @@ import {
 import { addDiscordCompilation } from "./DiscordCompilerPlugin";
 import DiscordImporter from "./DiscordImporter";
 import { BitwisePermission, PermissionsField } from "./Permissions";
-import {
-  InteractionResponseCallback,
-  SlashCommandInteraction,
-} from "./Interactions";
+import { SlashCommandInteraction } from "./Interactions";
 
 function interactionIsPing(
   interaction: APIInteraction
@@ -57,7 +54,8 @@ export default class DiscordClient {
     }
 
     const bodyJson = JSON.parse(body) as APIInteraction;
-    return await this.handleInteraction(bodyJson);
+    this.handleInteraction(bodyJson);
+    return new NextResponse(null, { status: 202 });
   };
 
   private async verify(req: NextRequest, body: string) {
@@ -76,59 +74,8 @@ export default class DiscordClient {
         type: InteractionResponseType.Pong,
       });
     } else if (interactionIsCommand(interaction)) {
-      return new Promise<NextResponse>(async (resolve) => {
-        let resolved = false;
-        const commandNameParts = [interaction.data.name];
-        if (
-          (
-            [
-              ApplicationCommandOptionType.Subcommand,
-              ApplicationCommandOptionType.SubcommandGroup,
-            ] as (number | undefined)[]
-          ).includes(interaction.data.options?.[0]?.type)
-        ) {
-          commandNameParts.push(interaction.data.options?.[0].name!);
-        }
-        if (
-          (
-            interaction.data
-              .options?.[0] as APIApplicationCommandInteractionDataSubcommandGroupOption
-          )?.options?.[0]?.type === ApplicationCommandOptionType.Subcommand
-        ) {
-          commandNameParts.push(
-            (
-              interaction.data
-                .options?.[0] as APIApplicationCommandInteractionDataSubcommandGroupOption
-            ).options[0].name!
-          );
-        }
-
-        setTimeout(() => {
-          if (resolved) return;
-          console.log(
-            `⚠️ Timeout waiting for interaction response in command "${commandNameParts.join(
-              " "
-            )}"`
-          );
-          resolve(new NextResponse(null, { status: 500 }));
-        }, 5000);
-
-        const resCallback: InteractionResponseCallback = (res) => {
-          resolved = true;
-          resolve(res);
-        };
-        const interactionObj = new SlashCommandInteraction(
-          interaction,
-          resCallback
-        );
-
-        const command = await global.DiscordImporter.getCommand(
-          commandNameParts as [string, string, string]
-        );
-        const rootRun = await command[0].execute?.(interactionObj);
-        const subRun = await command[1]?.execute?.(interactionObj, rootRun);
-        await command[2]?.execute?.(interactionObj, subRun);
-      });
+      this.handleCommandInteraction(interaction);
+      return new NextResponse(null, { status: 202 });
     } else {
       console.log(
         "received other interaction",
@@ -136,6 +83,44 @@ export default class DiscordClient {
       );
       return new NextResponse(null, { status: 400 });
     }
+  }
+
+  private async handleCommandInteraction(
+    interaction: APIChatInputApplicationCommandInteraction
+  ): Promise<void> {
+    const commandNameParts = [interaction.data.name];
+    if (
+      (
+        [
+          ApplicationCommandOptionType.Subcommand,
+          ApplicationCommandOptionType.SubcommandGroup,
+        ] as (number | undefined)[]
+      ).includes(interaction.data.options?.[0]?.type)
+    ) {
+      commandNameParts.push(interaction.data.options?.[0].name!);
+    }
+    if (
+      (
+        interaction.data
+          .options?.[0] as APIApplicationCommandInteractionDataSubcommandGroupOption
+      )?.options?.[0]?.type === ApplicationCommandOptionType.Subcommand
+    ) {
+      commandNameParts.push(
+        (
+          interaction.data
+            .options?.[0] as APIApplicationCommandInteractionDataSubcommandGroupOption
+        ).options[0].name!
+      );
+    }
+
+    const interactionObj = new SlashCommandInteraction(interaction);
+
+    const command = await global.DiscordImporter.getCommand(
+      commandNameParts as [string, string, string]
+    );
+    const rootRun = await command[0].execute?.(interactionObj);
+    const subRun = await command[1]?.execute?.(interactionObj, rootRun);
+    await command[2]?.execute?.(interactionObj, subRun);
   }
 }
 
