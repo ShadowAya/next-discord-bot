@@ -94,11 +94,15 @@ export class PermissionsField extends PermissionsFieldBase {
    * Creates a new permissions field.
    * @param value The value to initialize the permissions field with.
    */
-  public static from(value?: number | BitwisePermission[]) {
-    if (typeof value === "number") {
-      return new PermissionsField(value);
+  public static from(value: number): PermissionsField;
+  public static from(...value: BitwisePermission[]): PermissionsField;
+  public static from(
+    ...args: [number] | BitwisePermission[]
+  ): PermissionsField {
+    if (typeof args[0] === "number" && args.length === 1) {
+      return new PermissionsField(args[0]);
     } else {
-      return new PermissionsField(undefined, value);
+      return new PermissionsField(undefined, args as BitwisePermission[]);
     }
   }
 
@@ -135,17 +139,18 @@ class ReadonlyPermissionsField extends PermissionsFieldBase {
     super(numValue, bitwiseValue);
   }
 
-  public static from(value: number | BitwisePermission[]) {
-    if (typeof value === "number") {
-      return new ReadonlyPermissionsField(value);
+  public static from(value: number): ReadonlyPermissionsField;
+  public static from(...value: BitwisePermission[]): ReadonlyPermissionsField;
+  public static from(
+    ...args: [number] | BitwisePermission[]
+  ): ReadonlyPermissionsField {
+    if (typeof args[0] === "number" && args.length === 1) {
+      return new ReadonlyPermissionsField(args[0]);
     } else {
-      return new ReadonlyPermissionsField(undefined, value);
+      return new ReadonlyPermissionsField(
+        undefined,
+        args as BitwisePermission[]
+      );
     }
   }
-}
-
-export function createReadonlyPermissionsField(
-  value: number | BitwisePermission[]
-): ReadonlyPermissionsField {
-  return ReadonlyPermissionsField.from(value);
 }
