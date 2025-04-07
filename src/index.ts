@@ -16,8 +16,12 @@ import {
 } from "./SlashCommandBuilder";
 import { addDiscordCompilation } from "./DiscordCompilerPlugin";
 import DiscordImporter from "./DiscordImporter";
-import { BitwisePermission, PermissionsField } from "./Permissions";
-import { SlashCommandInteraction } from "./Interactions";
+import {
+  ChannelFlagField,
+  PermissionFlags,
+  PermissionFlagField,
+} from "./Flags";
+import { SlashCommandInteraction } from "./discord_classes/Interactions";
 
 function interactionIsPing(
   interaction: APIInteraction
@@ -54,8 +58,7 @@ export default class DiscordClient {
     }
 
     const bodyJson = JSON.parse(body) as APIInteraction;
-    this.handleInteraction(bodyJson);
-    return new NextResponse(null, { status: 202 });
+    return this.handleInteraction(bodyJson);
   };
 
   private async verify(req: NextRequest, body: string) {
@@ -68,7 +71,7 @@ export default class DiscordClient {
     return verifyKey(body, signature, timestamp, this.publicKey);
   }
 
-  private async handleInteraction(interaction: APIInteraction) {
+  private handleInteraction(interaction: APIInteraction) {
     if (interactionIsPing(interaction)) {
       return NextResponse.json<APIInteractionResponsePong>({
         type: InteractionResponseType.Pong,
@@ -128,7 +131,8 @@ export {
   SlashSubCommandBuilder,
   SlashRootCommandBuilder,
   DiscordImporter,
-  PermissionsField,
-  BitwisePermission,
+  PermissionFlagField,
+  ChannelFlagField,
+  PermissionFlags,
   addDiscordCompilation,
 };
