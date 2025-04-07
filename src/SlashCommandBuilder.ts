@@ -3,8 +3,8 @@ import {
   APIApplicationCommandSubcommandOption,
   ApplicationCommandOptionType,
 } from "discord-api-types/v10";
-import { PermissionsField } from "./Permissions";
-import { SlashCommandInteraction } from "./Interactions";
+import { PermissionFlagField } from "./Flags";
+import { SlashCommandInteraction } from "./discord_classes/Interactions";
 
 type ExecuteFn = (interaction: SlashCommandInteraction) => Promise<any>;
 type ExecuteFnWithPrev<Prev = any> = (
@@ -23,7 +23,7 @@ type SlashRootCommandBuilderData = Omit<
   RESTPostAPIChatInputApplicationCommandsJSONBody,
   "options" | "name" | "default_member_permissions" | "type"
 > & {
-  default_member_permissions?: PermissionsField;
+  default_member_permissions?: PermissionFlagField;
   execute?: ExecuteFn;
 };
 

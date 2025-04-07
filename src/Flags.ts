@@ -1,4 +1,4 @@
-export enum BitwisePermission {
+export enum PermissionFlags {
   CREATE_INSTANT_INVITE = 0x0000000000000001,
   KICK_MEMBERS = 0x0000000000000002,
   BAN_MEMBERS = 0x0000000000000004,
@@ -50,16 +50,27 @@ export enum BitwisePermission {
   USE_EXTERNAL_APPS = 0x0001000000000000,
 }
 
-class PermissionsFieldBase {
-  protected permissions = 0x0;
+export enum ChannelFlags {
+  PINNED = 0x2,
+  REQUIRE_TAG = 0x10,
+  HIDE_MEDIA_DOWNLOAD_OPTIONS = 0x8000,
+}
 
-  protected constructor(numValue?: number, bitwiseValue?: BitwisePermission[]) {
-    if (numValue !== undefined) {
-      this.permissions = numValue;
-    }
-    if (bitwiseValue) {
-      for (const perm of bitwiseValue) {
-        this.permissions |= perm;
+abstract class FlagFieldBase<T extends PermissionFlags | ChannelFlags> {
+  protected flags = 0x0;
+
+  constructor(
+    /**
+     * Either a numeric value or an array of {@link T} flags.
+     */
+    ...value: [number] | T[]
+  ) {
+    if (!value) return;
+    if (typeof value[0] === "number" && value.length === 1) {
+      this.flags = value[0];
+    } else {
+      for (const flag of value as T[]) {
+        this.flags |= flag;
       }
     }
   }
@@ -69,8 +80,8 @@ class PermissionsFieldBase {
    * @param permissions The permissions to check for.
    * @returns Whether the permissions field has the specified permissions.
    */
-  public has(...permissions: BitwisePermission[]) {
-    return permissions.every((perm) => (this.permissions & perm) === perm);
+  public has(...permissions: T[]) {
+    return permissions.every((perm) => (this.flags & perm) === perm);
   }
 
   /**
@@ -78,42 +89,21 @@ class PermissionsFieldBase {
    * @returns The permissions field as a number.
    */
   public asNumber() {
-    return this.permissions;
+    return this.flags;
   }
 }
 
-/**
- * A class that constructs the permissions field.
- */
-export class PermissionsField extends PermissionsFieldBase {
-  private constructor(numValue?: number, bitwiseValue?: BitwisePermission[]) {
-    super(numValue, bitwiseValue);
-  }
-
-  /**
-   * Creates a new permissions field.
-   * @param value The value to initialize the permissions field with.
-   */
-  public static from(value: number): PermissionsField;
-  public static from(...value: BitwisePermission[]): PermissionsField;
-  public static from(
-    ...args: [number] | BitwisePermission[]
-  ): PermissionsField {
-    if (typeof args[0] === "number" && args.length === 1) {
-      return new PermissionsField(args[0]);
-    } else {
-      return new PermissionsField(undefined, args as BitwisePermission[]);
-    }
-  }
-
+abstract class WritableFlagFieldBase<
+  T extends PermissionFlags | ChannelFlags
+> extends FlagFieldBase<T> {
   /**
    * Adds permissions to the field.
    * @param permissions The permissions to add.
    * @returns The updated permissions field.
    */
-  public add(...permissions: BitwisePermission[]) {
+  public add(...permissions: T[]) {
     for (const perm of permissions) {
-      this.permissions |= perm;
+      this.flags |= perm;
     }
     return this;
   }
@@ -123,34 +113,25 @@ export class PermissionsField extends PermissionsFieldBase {
    * @param permissions The permissions to remove.
    * @returns The updated permissions field.
    */
-  public remove(...permissions: BitwisePermission[]) {
+  public remove(...permissions: T[]) {
     for (const perm of permissions) {
-      this.permissions &= ~perm;
+      this.flags &= ~perm;
     }
     return this;
   }
 }
 
 /**
+ * A class that constructs the permissions field.
+ */
+export class PermissionFlagField extends WritableFlagFieldBase<PermissionFlags> {}
+
+/**
  * A class that stores the permissions field.
  */
-class ReadonlyPermissionsField extends PermissionsFieldBase {
-  private constructor(numValue?: number, bitwiseValue?: BitwisePermission[]) {
-    super(numValue, bitwiseValue);
-  }
+export class ReadonlyPermissionFlagField extends FlagFieldBase<PermissionFlags> {}
 
-  public static from(value: number): ReadonlyPermissionsField;
-  public static from(...value: BitwisePermission[]): ReadonlyPermissionsField;
-  public static from(
-    ...args: [number] | BitwisePermission[]
-  ): ReadonlyPermissionsField {
-    if (typeof args[0] === "number" && args.length === 1) {
-      return new ReadonlyPermissionsField(args[0]);
-    } else {
-      return new ReadonlyPermissionsField(
-        undefined,
-        args as BitwisePermission[]
-      );
-    }
-  }
-}
+/**
+ * A class that constructs the channel flags field.
+ */
+export class ChannelFlagField extends WritableFlagFieldBase<ChannelFlags> {}
