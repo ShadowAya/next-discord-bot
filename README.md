@@ -73,13 +73,17 @@ Each `CommandBuilder` can define an `#execute` method, they trigger from root to
 *Note: Only the lowest defined command can be invoked by itself by a user. [More Info](https://discord.com/developers/docs/interactions/application-commands#subcommands-and-subcommand-groups)*
 
 ```ts
-import { SlashRootCommandBuilder, PermissionsField, BitwisePermission } from "next-discord-bot";
+import {
+  SlashRootCommandBuilder,
+  PermissionsField,
+  BitwisePermission
+} from "next-discord-bot";
 
 export default new SlashRootCommandBuilder({
   description: "Ping command",
-  default_member_permissions: PermissionsField.from([
+  default_member_permissions: new PermissionFlagField(
     BitwisePermission.ADMINISTRATOR,
-  ]),
+  ),
   execute: async (interaction) => {
     const time = Date.now() - interaction.createdAt.getTime();
     await interaction.reply({
@@ -118,8 +122,7 @@ export default new SlashSubCommandBuilder({
     - [x] Structure
     - [x] Execution
     - [ ] Options
-  - [ ] Slash Command Interactions
-    - [x] `#reply`
+  - [x] Slash Command Interactions
   - [ ] Autocomplete
 - User Commands
   - [ ] User Command Interactions
