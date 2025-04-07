@@ -6,8 +6,10 @@ import {
   InteractionResponseType,
   InteractionType,
   RESTPostAPIInteractionCallbackWithResponseResult,
+  RESTPostAPIInteractionFollowupJSONBody,
+  RESTPostAPIInteractionFollowupResult,
 } from "discord-api-types/v10";
-import discordAPIRequest from "./DiscordAPI";
+import discordAPIRequest from "../DiscordAPI";
 import Message from "./Message";
 
 function getTimestampFromSnowflake(snowflake: string): Date {
@@ -17,27 +19,35 @@ function getTimestampFromSnowflake(snowflake: string): Date {
   return new Date(Number(timestamp));
 }
 
-type MessageContent<WithRes extends boolean | undefined> = {
+type MessageContentBase = {
   tts?: boolean;
   content: string;
   // embeds
-  // allowed_mentions
-  supress_embeds?: boolean;
+  // allowedMentions
   ephemeral?: boolean;
-  supress_notifications?: boolean;
+  supressEmbeds?: boolean;
+  supressNotifications?: boolean;
   // components
   // attachments
   // poll
-  withResponse?: WithRes;
 };
+
+type MessageContent<WithRes extends boolean | undefined> =
+  MessageContentBase & {
+    withResponse?: WithRes;
+  };
 type EditMessageContent = {
   content?: string;
   // embeds
-  // allowed_mentions
+  // allowedMentions
   // components
   // attachments
   // poll
 };
+type FollowUpMessageContent<T extends string | undefined> =
+  MessageContentBase & {
+    threadName?: T;
+  } & (T extends string ? { appliedTags: string[] } : {});
 type DeferMessageContent<WithRes extends boolean | undefined> = {
   ephemeral?: boolean;
   withResponse?: WithRes;
@@ -82,9 +92,9 @@ class BaseInteraction {
       };
     } else {
       let compiledFlags = 1;
-      if (content.supress_embeds) compiledFlags |= 1 << 2;
+      if (content.supressEmbeds) compiledFlags |= 1 << 2;
       if (content.ephemeral) compiledFlags |= 1 << 6;
-      if (content.supress_notifications) compiledFlags |= 1 << 12;
+      if (content.supressNotifications) compiledFlags |= 1 << 12;
 
       reqBody = {
         type: InteractionResponseType.ChannelMessageWithSource,
@@ -201,6 +211,39 @@ class BaseInteraction {
       `webhooks/${process.env.NDB_DISCORD_CLIENT_ID}/${this.interaction.token}/messages/@original`,
       "DELETE"
     );
+  }
+
+  async followUp<T extends string | undefined = undefined>(
+    content: string | FollowUpMessageContent<T>
+  ) {
+    let reqBody: RESTPostAPIInteractionFollowupJSONBody;
+    const isString = typeof content === "string";
+
+    if (isString) {
+      reqBody = { content };
+    } else {
+      let compiledFlags = 1;
+      if (content.supressEmbeds) compiledFlags |= 1 << 2;
+      if (content.ephemeral) compiledFlags |= 1 << 6;
+      if (content.supressNotifications) compiledFlags |= 1 << 12;
+
+      reqBody = {
+        tts: content.tts,
+        flags: compiledFlags,
+        content: content.content,
+        thread_name: content.threadName,
+        // @ts-expect-error appliedTags might not exist
+        applied_tags: content.appliedTags,
+      };
+    }
+
+    const req = await discordAPIRequest<RESTPostAPIInteractionFollowupResult>(
+      `webhooks/${process.env.NDB_DISCORD_CLIENT_ID}/${this.interaction.token}`,
+      "POST",
+      reqBody
+    );
+
+    return new Message(req);
   }
 }
 
